@@ -1,6 +1,7 @@
 package com.lsc.myfiletoolbox.common;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -130,6 +131,17 @@ public class CommonUtil {
             if (a[i] != b[i]) return false;
         }
         return true;
+    }
+
+    public static byte[] toByteArray(int value) {
+        return ByteBuffer.allocate(Integer.SIZE / Byte.SIZE).putInt(value).array();
+    }
+
+    public static int byteArrayToInt(byte[] bytes) {
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        buffer.put(bytes, 0, bytes.length);
+        buffer.flip();
+        return buffer.getInt();
     }
 }
 

@@ -13,7 +13,6 @@ public class FileByteUtil {
      */
     public static void modifyFileHeader(byte[] header, String filePath) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
-            int srcLength = (int) src.length();
             src.seek(0);
             src.write(header);
         } catch (Exception e) {
@@ -37,6 +36,36 @@ public class FileByteUtil {
             System.out.println("获取文件header失败!" + filePath);
         }
         return value;
+    }
+
+    public static void appendFileTail(String filePath,byte[] tail){
+        try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
+            src.seek(src.length());
+            src.write(tail);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("添加tail失败!" + filePath);
+        }
+    }
+
+    public static void writeFromHead(String filePath,byte[] b){
+        try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
+            src.setLength(0);
+            src.seek(0);
+            src.write(b);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("写入失败!" + filePath);
+        }
+    }
+
+    public static void clearContent(String filePath){
+        try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
+            src.setLength(0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("清空文件失败!" + filePath);
+        }
     }
 
 }

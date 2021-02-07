@@ -13,6 +13,15 @@ public class FileStatus {
     private String content;
     private String extension;
 
+    public FileStatus() { }
+
+    public FileStatus(String fileName, long fileLength, int encryptedLength, int status) {
+        this.fileName = fileName;
+        this.fileLength = fileLength;
+        this.encryptedLength = encryptedLength;
+        this.status = status;
+    }
+
     public String getFileName() {
         return fileName;
     }

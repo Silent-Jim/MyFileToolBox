@@ -1,8 +1,11 @@
 package com.lsc.myfiletoolbox.encrypt;
 
+import com.alibaba.fastjson.JSON;
 import com.lsc.myfiletoolbox.App;
 import com.lsc.myfiletoolbox.common.CommonUtil;
 import com.lsc.myfiletoolbox.common.FileByteUtil;
+import com.lsc.myfiletoolbox.encrypt.entity.FileStatus;
+import com.lsc.myfiletoolbox.encrypt.entity.FileTail;
 
 import java.io.*;
 import java.security.MessageDigest;
@@ -14,8 +17,6 @@ public class EncryptService {
 
     public static int ENCRYPTMODE = 0;
     public static int DECRYPTMODE = 1;
-
-    private static byte[] touchStone = {54, 117, 1, 81, 5, 86, 98, 16, 18, 96, 47, 66, 82, 122, 44, 67};
 
     private Encryptor encryptor;
     private Base64.Encoder encoder;
@@ -48,29 +49,75 @@ public class EncryptService {
         //long st=System.currentTimeMillis();
         String name = CommonUtil.getNameFromUrl(filepath);
         String folder = CommonUtil.getParentFolder(filepath);
-        if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERY.equals(name)
+        //忽略日志和备份文件
+        if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERYNAME.equals(name)
                 || App.CURRENTFILESTATUSNAME.equals(name)) return;
+
         File file = new File(filepath);
+        int encryptLength = (int) Math.min(file.length(), ENCRYPTEDLENGTH);
+
         File fileStatus=new File(CommonUtil.concatUrl(folder,App.CURRENTFILESTATUSNAME));
         if(!fileStatus.exists()){
             fileStatus.createNewFile();
         }
-        BufferedWriter writer = new BufferedWriter(new FileWriter(encryptionLog, false));
-        writer.write(String.format("%-255s\n", filepath));
-        writer.write(String.format("%-255s\n", file.length()));
-        writer.flush();
+        FileStatus fileStatusEntity=new FileStatus(filepath,file.length(),encryptLength,0);
+        OutputStream out=new FileOutputStream(fileStatus,false);
+        out.write(JSON.toJSONBytes(fileStatusEntity));
+        out.flush();
+        out.close();
+        File headRec=new File(CommonUtil.concatUrl(folder,App.HEADRECOVERYNAME));
+        if(!headRec.exists()){
+            headRec.createNewFile();
+        }
 
-
-        int encryptLength = (int) Math.min(file.length(), ENCRYPTEDLENGTH);
         byte[] header = FileByteUtil.getFileHeader(filepath, encryptLength);
-        byte[] result = null;
-        result = encryptor.encrypt(header, password);
         byte[] headerMd5B = md5.digest(header);
         byte[] headerSha1B = sha1.digest(header);
-        if (result == null) {
-            throw new Exception("加密错误");
+        FileByteUtil.writeFromHead(headRec.getAbsolutePath(),header);
+        byte[] readed=FileByteUtil.getFileHeader(headRec.getAbsolutePath(),encryptLength);
+        byte[] readedMd5B = md5.digest(readed);
+        byte[] readedSha1B = sha1.digest(readed);
+        if(CommonUtil.checkSame(headerMd5B,readedMd5B)&&CommonUtil.checkSame(headerSha1B,readedSha1B)){
+            fileStatusEntity.setOriginMd5(new String(headerMd5B));
+            fileStatusEntity.setOriginSha1(new String(headerSha1B));
+            fileStatusEntity.setStatus(1);
+            out=new FileOutputStream(fileStatus);
+            out.write(JSON.toJSONBytes(fileStatusEntity));
+            out.flush();
+            out.close();
         }
+
+        ////s1
+
+        byte[] result = null;
+        result = encryptor.encrypt(header, password);
+        FileTail fileTailEntity=new FileTail();
+        fileTailEntity.setEncryptedLength(CommonUtil.toByteArray(0));
+        fileTailEntity.setOriginMd5(headerMd5B);
+        fileTailEntity.setOriginSha1(headerSha1B);
+        byte[] encryptedMd5=md5.digest(result);
+        byte[] encryptedSha1=sha1.digest(result);
+        fileTailEntity.setEncryptedMd5(encryptedMd5);
+        fileTailEntity.setEncryptedSha1(encryptedSha1);
+
         FileByteUtil.modifyFileHeader(result, filepath);
+        FileByteUtil.appendFileTail(filepath,fileTailEntity.toByteArray());
+
+        ////
+        byte[] encrypted=FileByteUtil.getFileHeader(filepath,encryptLength);
+        byte[] origin=encryptor.decrypt(encrypted,password);
+        byte[] originMd5=md5.digest(origin);
+        byte[] originSha1=sha1.digest(origin);
+        if(CommonUtil.checkSame(headerMd5B,originMd5)&&CommonUtil.checkSame(headerSha1B,originSha1)){
+            fileStatusEntity.setEncryptedMd5(new String(encryptedMd5));
+            fileStatusEntity.setEncryptedSha1(new String(encryptedSha1));
+            fileStatusEntity.setStatus(2);
+            out=new FileOutputStream(fileStatus);
+            out.write(JSON.toJSONBytes(fileStatusEntity));
+            out.flush();
+            out.close();
+
+        }
         byte[] namebytes = encoder.encode(name.getBytes());
         file.renameTo(new File(folder + new String(namebytes)));
         appendWriter.write(String.format("%s\n", filepath));
@@ -78,14 +125,13 @@ public class EncryptService {
         appendWriter.flush();
         //long dis=System.currentTimeMillis()-st;
         //System.out.println(dis+"  "+filepath);
-        writer.close();
     }
 
     public void decryptFile(String filepath, String password) throws Exception {
         //long st=System.currentTimeMillis();
         String name = CommonUtil.getNameFromUrl(filepath);
         String folder = CommonUtil.getParentFolder(filepath);
-        if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERY.equals(name)
+        if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERYNAME.equals(name)
                 || App.CURRENTFILESTATUSNAME.equals(name)) return;
         File file = new File(filepath);
         int encryptLength = (int) Math.min(file.length(), ENCRYPTEDLENGTH);

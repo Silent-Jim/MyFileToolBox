@@ -8,7 +8,7 @@ public class App {
     public static String USEDEFAULTPASSWOED="true"; //使用密码
     public static String USEFULLENCRYPTION="false";//使用全文件加密
     public static String ENCRYPTIONLOGNAME="encryption.log";
-    public static String HEADRECOVERY="head.recovery";
+    public static String HEADRECOVERYNAME ="head.recovery";
     public static String CURRENTFILESTATUSNAME="currentfile.status";
 
 }
