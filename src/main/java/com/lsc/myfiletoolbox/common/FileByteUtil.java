@@ -38,6 +38,19 @@ public class FileByteUtil {
         return value;
     }
 
+    public static byte[] getFileTail(String filePath, int len) {
+        try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
+            src.seek(src.length()-len);
+            byte[] res=new byte[len];
+            src.read(res);
+            return res;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("添加tail失败!" + filePath);
+            return null;
+        }
+    }
+
     public static void appendFileTail(String filePath,byte[] tail){
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.seek(src.length());
@@ -59,6 +72,15 @@ public class FileByteUtil {
         }
     }
 
+    public static void removeTail(String filePath,int len){
+        try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
+            src.setLength(src.length()-len);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("清除尾部失败!" + filePath);
+        }
+    }
+
     public static void clearContent(String filePath){
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.setLength(0);
@@ -67,5 +89,6 @@ public class FileByteUtil {
             System.out.println("清空文件失败!" + filePath);
         }
     }
+
 
 }

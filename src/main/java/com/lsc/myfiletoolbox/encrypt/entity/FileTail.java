@@ -3,7 +3,8 @@ package com.lsc.myfiletoolbox.encrypt.entity;
 import java.lang.reflect.Array;
 
 public class FileTail {
-    private static byte[] TOUNCHSTONE = {54, 117, 1, 81, 5, 86, 98, 16, 18, 96, 47, 66, 82, 122, 44, 67};
+    public static byte[] TOUNCHSTONE = {54, 117, 1, 81, 5, 86, 98, 16, 18, 96, 47, 66, 82, 122, 44, 67};
+    public static int TAILLENGTH=92;
     private byte[] touchStone;
     private byte[] encryptedLength;
     private byte[] originMd5;
@@ -46,26 +47,32 @@ public class FileTail {
             throw new Exception("byte length must be 92");
         }
         int cnt=0;
+        touchStone=new byte[16];
         for (int i = 0; i <16 ; i++) {
             touchStone[i]=b[cnt];
             cnt++;
         }
+        encryptedLength=new byte[4];
         for (int i = 0; i <4 ; i++) {
             encryptedLength[i]=b[cnt];
             cnt++;
         }
+        originMd5=new byte[16];
         for (int i = 0; i <16 ; i++) {
             originMd5[i]=b[cnt];
             cnt++;
         }
+        originSha1=new byte[20];
         for (int i = 0; i <20; i++) {
             originSha1[i]=b[cnt];
             cnt++;
         }
+        encryptedMd5=new byte[16];
         for (int i = 0; i <16 ; i++) {
             encryptedMd5[i]=b[cnt];
             cnt++;
         }
+        encryptedSha1=new byte[20];
         for (int i = 0; i <20; i++) {
             encryptedSha1[i]=b[cnt];
             cnt++;
@@ -73,15 +80,10 @@ public class FileTail {
     }
 
     public FileTail() {
-        touchStone=FileTail.TOUNCHSTONE;
-    }
-
-    public static byte[] getTOUNCHSTONE() {
-        return TOUNCHSTONE;
-    }
-
-    public static void setTOUNCHSTONE(byte[] TOUNCHSTONE) {
-        FileTail.TOUNCHSTONE = TOUNCHSTONE;
+        touchStone=new byte[FileTail.TOUNCHSTONE.length];
+        for (int i = 0; i <FileTail.TOUNCHSTONE.length ; i++) {
+            touchStone[i]=FileTail.TOUNCHSTONE[i];
+        }
     }
 
     public byte[] getTouchStone() {

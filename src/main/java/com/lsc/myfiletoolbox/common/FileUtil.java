@@ -37,6 +37,18 @@ public class FileUtil {
         }
     }
 
+    public static void writeToFile(File file,byte[] b,boolean useAppend) throws Exception{
+        OutputStream out = new FileOutputStream(file, useAppend);
+        out.write(b);
+        out.flush();
+        out.close();
+    }
+
+    public static void writeToFile(String filePath,byte[] b,boolean useAppend)throws Exception{
+        File file=new File(filePath);
+        writeToFile(file,b,useAppend);
+    }
+
     // 复制文件
     public static void copyFile(String sourceUrl, String targetUrl)
             throws IOException {
