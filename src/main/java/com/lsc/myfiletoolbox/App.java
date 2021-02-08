@@ -3,6 +3,7 @@ package com.lsc.myfiletoolbox;
 import java.io.File;
 
 public class App {
+    public static int MAXRETRY=10;
     public static int ENCRYPTEDLENGTH = 8192; //默认加密长度
     public static String DEFAULTPASSWORD = "Pa55w0rd!"; //默认密码
     public static String USEDEFAULTPASSWOED="true"; //使用密码

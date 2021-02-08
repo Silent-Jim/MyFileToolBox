@@ -52,7 +52,8 @@ public class EncryptService {
         //忽略日志和备份文件
         if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERYNAME.equals(name)
                 || App.CURRENTFILESTATUSNAME.equals(name)) return;
-
+        int retryCount = 0;
+        int maxRetry = App.MAXRETRY;
         File file = new File(filepath);
         int encryptLength = (int) Math.min(file.length(), ENCRYPTEDLENGTH);
 
@@ -70,41 +71,52 @@ public class EncryptService {
         byte[] header = FileByteUtil.getFileHeader(filepath, encryptLength);
         byte[] headerMd5 = md5.digest(header);
         byte[] headerSha1 = sha1.digest(header);
-        if (backupHead(headRec, header)) {
-            fileStatusEntity.setOriginMd5(new String(headerMd5));
-            fileStatusEntity.setOriginSha1(new String(headerSha1));
-            fileStatusEntity.setStatus(1);
-            FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
-        }
-        ////s1
-        byte[] result = encryptor.encrypt(header, password);
-        FileByteUtil.modifyFileHeader(result, filepath);
 
-        FileTail fileTailEntity = new FileTail();
-        fileTailEntity.setEncryptedLength(CommonUtil.toByteArray(encryptLength));
-        fileTailEntity.setOriginMd5(headerMd5);
-        fileTailEntity.setOriginSha1(headerSha1);
-        byte[] encryptedMd5 = md5.digest(result);
-        byte[] encryptedSha1 = sha1.digest(result);
-        fileTailEntity.setEncryptedMd5(encryptedMd5);
-        fileTailEntity.setEncryptedSha1(encryptedSha1);
-        byte[] encryptedTail = encryptor.encrypt(fileTailEntity.toByteArray(), password);
-        FileByteUtil.appendFileTail(filepath, encryptedTail);
-        ////
-        byte[] encrypted = FileByteUtil.getFileHeader(filepath, encryptLength);
-        byte[] origin = encryptor.decrypt(encrypted, password);
-        byte[] readedTail = FileByteUtil.getFileTail(filepath, FileTail.TAILLENGTH);
-        FileTail readedFileTail = new FileTail(encryptor.decrypt(readedTail, password));
-        if (checkMessageDigest(header, origin) &&
-                CommonUtil.checkSame(FileTail.TOUNCHSTONE, readedFileTail.getTouchStone())) {
-            fileStatusEntity.setEncryptedMd5(new String(encryptedMd5));
-            fileStatusEntity.setEncryptedSha1(new String(encryptedSha1));
-            fileStatusEntity.setStatus(2);
-            FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
+        while ((!backupHead(headRec, header) && retryCount < maxRetry)) {
+            retryCount++;
+        }
+        if (retryCount >= maxRetry) {
+            throw new Exception("备份头部数据失败");
+        }
+        fileStatusEntity.setOriginMd5(new String(headerMd5));
+        fileStatusEntity.setOriginSha1(new String(headerSha1));
+        fileStatusEntity.setStatus(1);
+        FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
+        ////s1
+        byte[] origin = null;
+        FileTail readedFileTail = null;
+        byte[] encryptedMd5 = null;
+        byte[] encryptedSha1 = null;
+        do {
+            byte[] result = encryptor.encrypt(header, password);
+            FileByteUtil.modifyFileHeader(result, filepath);
+
+            FileTail fileTailEntity = new FileTail();
+            fileTailEntity.setEncryptedLength(CommonUtil.toByteArray(encryptLength));
+            fileTailEntity.setOriginMd5(headerMd5);
+            fileTailEntity.setOriginSha1(headerSha1);
+            encryptedMd5 = md5.digest(result);
+            encryptedSha1 = sha1.digest(result);
+            fileTailEntity.setEncryptedMd5(encryptedMd5);
+            fileTailEntity.setEncryptedSha1(encryptedSha1);
+            byte[] encryptedTail = encryptor.encrypt(fileTailEntity.toByteArray(), password);
+            FileByteUtil.appendFileTail(filepath, encryptedTail);
+            ////
+            byte[] encrypted = FileByteUtil.getFileHeader(filepath, encryptLength);
+            origin = encryptor.decrypt(encrypted, password);
+            byte[] readedTail = FileByteUtil.getFileTail(filepath, FileTail.TAILLENGTH);
+            readedFileTail = new FileTail(encryptor.decrypt(readedTail, password));
+        } while (retryCount < maxRetry && ((!checkMessageDigest(header, origin)) ||
+                (!CommonUtil.checkSame(FileTail.TOUNCHSTONE, readedFileTail.getTouchStone()))));
+        fileStatusEntity.setEncryptedMd5(new String(encryptedMd5));
+        fileStatusEntity.setEncryptedSha1(new String(encryptedSha1));
+        fileStatusEntity.setStatus(2);
+        FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
+        if (retryCount >= maxRetry) {
+            throw new Exception("加密数据失败");
         }
         ///s2
-        byte[] namebytes = encoder.encode(name.getBytes());
-        file.renameTo(new File(folder + new String(namebytes)));
+        dealRenameFile(file, name, folder, ENCRYPTMODE);
         clearup(filepath, fileStatus, headRec);
     }
 
@@ -114,11 +126,14 @@ public class EncryptService {
         if (App.ENCRYPTIONLOGNAME.equals(name) || App.HEADRECOVERYNAME.equals(name)
                 || App.CURRENTFILESTATUSNAME.equals(name)) return;
         /////
+        int retryCount = 0;
+        int maxRetry = App.MAXRETRY;
         File file = new File(filepath);
         byte[] fileTailB = FileByteUtil.getFileTail(filepath, FileTail.TAILLENGTH);
         FileTail fileTail = new FileTail(encryptor.decrypt(fileTailB, password));
         if (!CommonUtil.checkSame(FileTail.TOUNCHSTONE, fileTail.getTouchStone())) {
-            throw new Exception("密码错误或不是支持的加密后文件");
+            System.out.println("密码错误或不是支持的加密后文件:" + filepath);
+            return;
         }
         int encryptLength = CommonUtil.byteArrayToInt(fileTail.getEncryptedLength());
         //////
@@ -136,30 +151,31 @@ public class EncryptService {
         byte[] header = FileByteUtil.getFileHeader(filepath, encryptLength);
         byte[] headerMd5 = md5.digest(header);
         byte[] headerSha1 = sha1.digest(header);
-        if (backupHead(headRec, header)) {
-            fileStatusEntity.setOriginMd5(new String(headerMd5));
-            fileStatusEntity.setOriginSha1(new String(headerSha1));
-            fileStatusEntity.setStatus(1);
-            FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
+        while ((!backupHead(headRec, header) && retryCount < maxRetry)) {
+            retryCount++;
         }
+        if (retryCount >= maxRetry) {
+            throw new Exception("备份头部数据失败");
+        }
+        fileStatusEntity.setOriginMd5(new String(headerMd5));
+        fileStatusEntity.setOriginSha1(new String(headerSha1));
+        fileStatusEntity.setStatus(1);
+        FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
         ////s1
-        byte[] result = encryptor.decrypt(header, password);
-        if (CommonUtil.checkSame(fileTail.getOriginMd5(), md5.digest(result))
-                && CommonUtil.checkSame(fileTail.getOriginSha1(), sha1.digest(result))) {
-        } else {
-            throw new Exception("解密错误");
+        byte[] readed = null;
+        do {
+            byte[] result = encryptor.decrypt(header, password);
+            FileByteUtil.modifyFileHeader(result, filepath);
+            readed = FileByteUtil.getFileHeader(filepath, encryptLength);
+        } while (retryCount < maxRetry && (!CommonUtil.checkSame(fileTail.getOriginMd5(), md5.digest(readed))
+                || !CommonUtil.checkSame(fileTail.getOriginSha1(), sha1.digest(readed))));
+
+        if (!FileByteUtil.removeTail(filepath, FileTail.TAILLENGTH)) {
+            throw new Exception("去除尾部加密信息失败");
         }
-        FileByteUtil.modifyFileHeader(result, filepath);
-        byte[] readed=FileByteUtil.getFileHeader(filepath,encryptLength);
-        if(!checkMessageDigest(result,readed)){
-            throw new Exception("写入head错误");
-        }
-        FileByteUtil.removeTail(filepath, FileTail.TAILLENGTH);
         fileStatusEntity.setStatus(2);
         FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
-
-        byte[] namebytes = decoder.decode(name.getBytes());
-        file.renameTo(new File(folder + new String(namebytes)));
+        dealRenameFile(file, name, folder, DECRYPTMODE);
         clearup(filepath, fileStatus, headRec);
     }
 
@@ -177,16 +193,12 @@ public class EncryptService {
                     encryptFolderFile(filelist[i].getAbsolutePath(), password, mode, encryptFolder);
                     //加密文件夹
                     if (encryptFolder) {
+                        int retryCount = 0;
+                        int maxRetry = App.MAXRETRY;
                         String parentFolder = CommonUtil.getParentFolder(filelist[i].getAbsolutePath());
                         String name = CommonUtil.getNameFromUrl(filelist[i].getAbsolutePath());
                         File file = new File(filelist[i].getAbsolutePath());
-                        if (mode == ENCRYPTMODE) {
-                            byte[] namebytes = encoder.encode(name.getBytes());
-                            file.renameTo(new File(parentFolder + new String(namebytes)));
-                        } else if (mode == DECRYPTMODE) {
-                            byte[] namebytes = decoder.decode(name.getBytes());
-                            file.renameTo(new File(parentFolder + new String(namebytes)));
-                        }
+                        dealRenameFile(file, name, parentFolder, ENCRYPTMODE);
                     }
                     System.out.println("处理完毕:" + filelist[i].getAbsolutePath());
                 }
@@ -234,7 +246,7 @@ public class EncryptService {
         encryptionLog = new File(url);
         if (encryptionLog.exists()) {
             if (!encryptionLog.delete()) {
-                new Exception("旧日志删除失败");
+                throw new Exception("旧日志删除失败");
             }
         }
         if (!encryptionLog.exists()) {
@@ -246,18 +258,23 @@ public class EncryptService {
         appendWriter.flush();
     }
 
-    private void clearup(String filepath, File fileStatus, File headRec) throws Exception {
-        appendWriter.write(String.format("%s\n", filepath));
-        appendWriter.write(String.format("%s\n", "finished"));
-        appendWriter.flush();
-        fileStatus.delete();
-        headRec.delete();
+    private void clearup(String filepath, File fileStatus, File headRec) {
+        try {
+            appendWriter.write(String.format("%s\n", filepath));
+            appendWriter.write(String.format("%s\n", "finished"));
+            appendWriter.flush();
+            fileStatus.delete();
+            headRec.delete();
+        } catch (Exception e) {
+            System.out.println("清理临时文件失败:" + filepath);
+        }
     }
 
     private void beforeFinish() {
         try {
             appendWriter.close();
             reader.close();
+            encryptionLog.delete();
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -271,5 +288,30 @@ public class EncryptService {
 
     public void setEncryptor(Encryptor encryptor) {
         this.encryptor = encryptor;
+    }
+
+    private boolean dealRenameFile(File file, String name, String folder, int mode) {
+        int retryCount = 0;
+        int maxRetry = App.MAXRETRY;
+        byte[] namebytes = null;
+        try {
+            if (mode == ENCRYPTMODE) {
+                namebytes = encoder.encode(name.getBytes());
+            } else if (mode == DECRYPTMODE) {
+                namebytes = decoder.decode(name.getBytes());
+            }
+        } catch (Exception e) {
+            System.out.println("文件名加解密失败:" + CommonUtil.concatUrl(folder, name));
+            //retryCount = maxRetry;
+            return false;
+        }
+        while (retryCount < maxRetry && (!file.renameTo(new File(folder + new String(namebytes))))) {
+            retryCount++;
+        }
+        if (retryCount >= maxRetry) {
+            System.out.println("文件名加解密失败:" + CommonUtil.concatUrl(folder, name));
+            return false;
+        }
+        return true;
     }
 }

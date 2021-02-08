@@ -11,13 +11,15 @@ public class FileByteUtil {
      * @param filePath
      * @throws Exception
      */
-    public static void modifyFileHeader(byte[] header, String filePath) {
+    public static boolean modifyFileHeader(byte[] header, String filePath) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.seek(0);
             src.write(header);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("修改文件header失败!" + filePath);
+            return false;
         }
     }
 
@@ -32,16 +34,17 @@ public class FileByteUtil {
         try (FileInputStream is = new FileInputStream(filePath)) {
             value = new byte[len];
             is.read(value, 0, len);
+            return value;
         } catch (Exception e) {
             System.out.println("获取文件header失败!" + filePath);
+            return null;
         }
-        return value;
     }
 
     public static byte[] getFileTail(String filePath, int len) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
-            src.seek(src.length()-len);
-            byte[] res=new byte[len];
+            src.seek(src.length() - len);
+            byte[] res = new byte[len];
             src.read(res);
             return res;
         } catch (Exception e) {
@@ -51,44 +54,51 @@ public class FileByteUtil {
         }
     }
 
-    public static void appendFileTail(String filePath,byte[] tail){
+    public static boolean appendFileTail(String filePath, byte[] tail) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.seek(src.length());
             src.write(tail);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("添加tail失败!" + filePath);
+            return false;
         }
     }
 
-    public static void writeFromHead(String filePath,byte[] b){
+    public static boolean writeFromHead(String filePath, byte[] b) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.setLength(0);
             src.seek(0);
             src.write(b);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("写入失败!" + filePath);
+            return false;
         }
     }
 
-    public static void removeTail(String filePath,int len){
+    public static boolean removeTail(String filePath, int len) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
-            src.setLength(src.length()-len);
+            src.setLength(src.length() - len);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("清除尾部失败!" + filePath);
+            return false;
         }
     }
 
-    public static void clearContent(String filePath){
+    public static boolean clearContent(String filePath) {
         try (RandomAccessFile src = new RandomAccessFile(filePath, "rw")) {
             src.setLength(0);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println("清空文件失败!" + filePath);
+            return false;
         }
     }
-
 
 }
