@@ -116,8 +116,9 @@ public class EncryptService {
             throw new Exception("加密数据失败");
         }
         ///s2
-        dealRenameFile(file, name, folder, ENCRYPTMODE);
         clearup(filepath, fileStatus, headRec);
+        dealRenameFile(file, name, folder, ENCRYPTMODE);
+
     }
 
     public void decryptFile(String filepath, String password) throws Exception {
@@ -183,7 +184,7 @@ public class EncryptService {
     public void encryptFolderFile(String folderPath, String password, int mode, boolean encryptFolder) throws Exception {
         File directory = new File(folderPath);
         if (directory.isDirectory()) {
-            createLog(CommonUtil.concatUrl(folderPath, App.ENCRYPTIONLOGNAME));
+            //createLog(CommonUtil.concatUrl(folderPath, App.ENCRYPTIONLOGNAME));
             File[] filelist = directory.listFiles();
             for (int i = 0; i < filelist.length; i++) {
                 /**如果当前是文件夹，进入递归扫描文件夹**/
@@ -198,7 +199,7 @@ public class EncryptService {
                         String parentFolder = CommonUtil.getParentFolder(filelist[i].getAbsolutePath());
                         String name = CommonUtil.getNameFromUrl(filelist[i].getAbsolutePath());
                         File file = new File(filelist[i].getAbsolutePath());
-                        dealRenameFile(file, name, parentFolder, ENCRYPTMODE);
+                        dealRenameFile(file, name, parentFolder, mode);
                     }
                     System.out.println("处理完毕:" + filelist[i].getAbsolutePath());
                 }
@@ -214,14 +215,14 @@ public class EncryptService {
             }
         } else {
             String father = CommonUtil.getParentFolder(folderPath);
-            createLog(CommonUtil.concatUrl(father, App.ENCRYPTIONLOGNAME));
+            //createLog(CommonUtil.concatUrl(father, App.ENCRYPTIONLOGNAME));
             if (mode == ENCRYPTMODE) {
                 encryptFile(folderPath, password);
             } else if (mode == DECRYPTMODE) {
                 decryptFile(folderPath, password);
             }
         }
-        beforeFinish();
+        //beforeFinish();
     }
 
     public boolean checkMessageDigest(byte[] a, byte[] b) {
@@ -242,6 +243,7 @@ public class EncryptService {
         } else return false;
     }
 
+    //不要使用，会导致部分重命名失败
     private void createLog(String url) throws Exception {
         encryptionLog = new File(url);
         if (encryptionLog.exists()) {
@@ -260,12 +262,13 @@ public class EncryptService {
 
     private void clearup(String filepath, File fileStatus, File headRec) {
         try {
-            appendWriter.write(String.format("%s\n", filepath));
-            appendWriter.write(String.format("%s\n", "finished"));
-            appendWriter.flush();
+            //appendWriter.write(String.format("%s\n", filepath));
+            //appendWriter.write(String.format("%s\n", "finished"));
+            //appendWriter.flush();
             fileStatus.delete();
             headRec.delete();
         } catch (Exception e) {
+            e.printStackTrace();
             System.out.println("清理临时文件失败:" + filepath);
         }
     }
