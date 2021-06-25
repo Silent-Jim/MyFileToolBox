@@ -49,7 +49,7 @@ public class FileByteUtil {
             return res;
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("添加tail失败!" + filePath);
+            System.out.println("获取tail失败!" + filePath);
             return null;
         }
     }

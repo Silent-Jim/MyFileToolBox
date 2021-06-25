@@ -87,10 +87,13 @@ public class EncryptService {
         FileTail readedFileTail = null;
         byte[] encryptedMd5 = null;
         byte[] encryptedSha1 = null;
+        boolean successFlag=true;
         do {
             byte[] result = encryptor.encrypt(header, password);
-            FileByteUtil.modifyFileHeader(result, filepath);
-
+            successFlag=FileByteUtil.modifyFileHeader(result, filepath);
+            if(successFlag==false){
+                break;
+            }
             FileTail fileTailEntity = new FileTail();
             fileTailEntity.setEncryptedLength(CommonUtil.toByteArray(encryptLength));
             fileTailEntity.setOriginMd5(headerMd5);
@@ -108,17 +111,21 @@ public class EncryptService {
             readedFileTail = new FileTail(encryptor.decrypt(readedTail, password));
         } while (retryCount < maxRetry && ((!checkMessageDigest(header, origin)) ||
                 (!CommonUtil.checkSame(FileTail.TOUNCHSTONE, readedFileTail.getTouchStone()))));
+        if(successFlag==false){
+            clearup(filepath, fileStatus, headRec);
+            dealRenameFile(file, name, folder, ENCRYPTMODE);
+            return;
+        }
+        if (retryCount >= maxRetry) {
+            throw new Exception("加密数据失败");
+        }
         fileStatusEntity.setEncryptedMd5(new String(encryptedMd5));
         fileStatusEntity.setEncryptedSha1(new String(encryptedSha1));
         fileStatusEntity.setStatus(2);
         FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
-        if (retryCount >= maxRetry) {
-            throw new Exception("加密数据失败");
-        }
         ///s2
         clearup(filepath, fileStatus, headRec);
         dealRenameFile(file, name, folder, ENCRYPTMODE);
-
     }
 
     public void decryptFile(String filepath, String password) throws Exception {
@@ -131,6 +138,11 @@ public class EncryptService {
         int maxRetry = App.MAXRETRY;
         File file = new File(filepath);
         byte[] fileTailB = FileByteUtil.getFileTail(filepath, FileTail.TAILLENGTH);
+        if(fileTailB==null){
+            System.out.println("不是支持的加密后文件:" + filepath);
+            dealRenameFile(file, name, folder, DECRYPTMODE);
+            return;
+        }
         FileTail fileTail = new FileTail(encryptor.decrypt(fileTailB, password));
         if (!CommonUtil.checkSame(FileTail.TOUNCHSTONE, fileTail.getTouchStone())) {
             System.out.println("密码错误或不是支持的加密后文件:" + filepath);
@@ -163,25 +175,33 @@ public class EncryptService {
         fileStatusEntity.setStatus(1);
         FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
         ////s1
+        boolean successFlag=true;
         byte[] readed = null;
         do {
             byte[] result = encryptor.decrypt(header, password);
-            FileByteUtil.modifyFileHeader(result, filepath);
+            successFlag=FileByteUtil.modifyFileHeader(result, filepath);
+            if(successFlag==false){
+                break;
+            }
             readed = FileByteUtil.getFileHeader(filepath, encryptLength);
         } while (retryCount < maxRetry && (!CommonUtil.checkSame(fileTail.getOriginMd5(), md5.digest(readed))
                 || !CommonUtil.checkSame(fileTail.getOriginSha1(), sha1.digest(readed))));
-
+        if(successFlag==false){
+            dealRenameFile(file, name, folder, DECRYPTMODE);
+            return;
+        }
         if (!FileByteUtil.removeTail(filepath, FileTail.TAILLENGTH)) {
             throw new Exception("去除尾部加密信息失败");
         }
         fileStatusEntity.setStatus(2);
         FileUtil.writeToFile(fileStatus, JSON.toJSONBytes(fileStatusEntity), false);
-        dealRenameFile(file, name, folder, DECRYPTMODE);
         clearup(filepath, fileStatus, headRec);
+        dealRenameFile(file, name, folder, DECRYPTMODE);
+
     }
 
     //加密解密文件夹内文件
-    public void encryptFolderFile(String folderPath, String password, int mode, boolean encryptFolder) throws Exception {
+    public void processFolderFile(String folderPath, String password, int mode, boolean encryptFolder) throws Exception {
         File directory = new File(folderPath);
         if (directory.isDirectory()) {
             //createLog(CommonUtil.concatUrl(folderPath, App.ENCRYPTIONLOGNAME));
@@ -191,7 +211,7 @@ public class EncryptService {
                 if (filelist[i].isDirectory()) {
                     /**递归扫描下面的文件夹**/
                     System.out.println("正在处理:" + filelist[i].getAbsolutePath());
-                    encryptFolderFile(filelist[i].getAbsolutePath(), password, mode, encryptFolder);
+                    processFolderFile(filelist[i].getAbsolutePath(), password, mode, encryptFolder);
                     //加密文件夹
                     if (encryptFolder) {
                         int retryCount = 0;
@@ -304,6 +324,7 @@ public class EncryptService {
                 namebytes = decoder.decode(name.getBytes());
             }
         } catch (Exception e) {
+            e.printStackTrace();
             System.out.println("文件名加解密失败:" + CommonUtil.concatUrl(folder, name));
             //retryCount = maxRetry;
             return false;

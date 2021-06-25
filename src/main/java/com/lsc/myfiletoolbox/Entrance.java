@@ -1,9 +1,6 @@
 package com.lsc.myfiletoolbox;
 
 import com.lsc.myfiletoolbox.encrypt.EncryptService;
-import com.lsc.myfiletoolbox.encrypt.XOREncryptor;
-
-import java.io.File;
 
 import static com.lsc.myfiletoolbox.App.DEFAULTPASSWORD;
 
@@ -32,7 +29,7 @@ public class Entrance {
             mode = EncryptService.DECRYPTMODE;
         }
         long st = System.currentTimeMillis();
-        encryptService.encryptFolderFile(filepath, password, mode, true);
+        encryptService.processFolderFile(filepath, password, mode, true);
 
         long dis = System.currentTimeMillis() - st;
         System.out.println(dis);
